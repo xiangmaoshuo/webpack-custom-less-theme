@@ -1,0 +1,18 @@
+{
+  "name": "less-theme-webpack-plugin",
+  "version": "1.0.0",
+  "description": "use less generate theme",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "xms",
+  "license": "ISC",
+  "dependencies": {
+    "hash.js": "^1.1.7",
+    "less": "^3.12.0",
+    "less-plugin-npm-import": "^2.1.0",
+    "postcss": "^7.0.32",
+    "webpack-sources": "^1.4.3"
+  }
+}
