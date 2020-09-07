@@ -1,6 +1,6 @@
 {
   "name": "less-theme-webpack-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "use less generate theme",
   "main": "index.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "less": "^3.12.0",
     "less-plugin-npm-import": "^2.1.0",
     "postcss": "^7.0.32",
+    "uglify-es": "^3.3.9",
     "webpack-sources": "^1.4.3"
   }
 }

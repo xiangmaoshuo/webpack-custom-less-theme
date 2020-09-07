@@ -17,20 +17,27 @@
  }
  ...
  plugins: [
+   // 详细配置参考index.js -> getOptions方法
    new LessThemeWebpackPlugin(
      {
       themeVariables: ['@primary-color'],
+      themeSelfVariables: [],
       // 默认你的less变量在src/assets/css/var.less文件中
-      varFile: path.resolve(compiler.context, './src/assets/css/var.less'),
+      varFile: './src/assets/css/var.less',
       /* 以下参数一般用不上 */
       customColorRegexArray: [],
-      fileName: 'css/theme-colors-[contenthash:8].less', // generate-theme-use-less没有使用到
+      fileName: 'css/theme-colors-[contenthash:8].less',
       // 默认使用的ui框架为view-design，如果你的项目是它，则不用处理
       ui: 'view-design',
       uiStyleDir: './src/styles',
       uiColorFile: './color/colors.less',
+      // 衍生变量生成函数文件地址
+      colorPaletteFile: './color/colorPalette.less',
       // 根据这个值，判断从js中提取css使用哪个正则表达式
-      isJsUgly: !isDev,
+      isJsUgly: !isDev(),
+      // 衍生变量
+      derivedVars: [],
+      ...
      }
    ),
  ]
@@ -55,6 +62,3 @@ webpack-theme-color-replacer则没有这个限制，他是基于webpack插件来
 ### 和上面两个插件相比，做了哪些改变呢？
 1. 将原来的css中对应的颜色样式进行了删除，这样无论theme-color插入在html的哪个地方，都不需要担心样式覆盖问题
 2. 支持热更新
-
-### TODO
-1. 现在只支持根据主题变量生成默认的衍生变量，后面看需求能不能支持其他衍生变量，或者自定义衍生变量

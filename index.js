@@ -6,13 +6,24 @@ const less = require('less');
 const NpmImportPlugin = require('less-plugin-npm-import');
 
 const generateThemeUseLess = require('./generate-theme-use-less');
-const { PLUGIN_NAME, COLOR_NAME } = require('./constant');
+const {
+  PLUGIN_NAME,
+  COLOR_NAME,
+  THEME_FILE,
+  DERIVED_COLOR_TAG,
+  IVIEW_DERIVED_VARS,
+  THEME_COMPILED_CSS_PREFIX,
+  THEME_COMPILED_CSS_REGEXP,
+  COLORS
+} = require('./constant');
 const {
   getShade,
   minifyCss,
   hmrJsFileRegExp,
+  getMatches,
   isDef,
   isDev,
+  IsPathExist,
 } = require('./utils');
 
 const dftCustomColorRegexArray = ['color', 'lighten', 'darken', 'saturate', 'desaturate', 'fadein', 'fadeout', 'fade', 'spin', 'mix', 'hsv', 'tint', 'shade', 'greyscale', 'multiply', 'contrast', 'screen', 'overlay']
@@ -23,94 +34,60 @@ const CSS_REGEXP_UGLY = /\.push\(\[\w+\.i,['"](.+?\})[\\rn]*['"],['"]['"](?:\]\)
 const cssFileRegExp = /\.css$/;
 const jsFileRegExp = /\.js$/;
 
-const cssOrJsRegExp = /(?<!(^less.min))\.(css|js)$/;
+const cssOrJsDevRegExp = /(?:(?:\.hot-update\.js$)|(css|js)\/((?!(less\.js$)).)+\.\1$)/;
+const cssOrJsProRegExp = /^css\/.+\.css$/;
 // 用以标记js中的css
 const cssSplitTag = '/* <get-css-from-asset-comment> */';
 
 // 简单的匹配颜色的正则表达式
-const matchColorRegExp = /(?<=(?:^| ))(#[a-f\d]+|rgb(?:a)?\(.*\))/;
+const matchColorRegExp = /(?<=(?:^| ))(#[a-fA-F\d]{3,6}|rgb(?:a)?\([\d, ]+\)|transparent|currentColor|ButtonText)(?=(?:$| ))/g;
 
 // 删除源码css中的所有颜色值，避免冲突
 const ReduceColorPlugin = postcss.plugin('ReduceColorPlugin', () => (root) => {
-  root.walkRules((rule) => {
-    rule.walkDecls(/(color|box-shadow)$/, (decl) => decl.remove());
-
-    rule.walkDecls(/^(border|outline)$/, (decl) => {
-      const value = decl.value.replace(matchColorRegExp, '').trim();
-      let style = '';
-      const width = value.replace(/solid|dashed|dotted/, (match) => {
-        style = match;
-        return '';
-      }).trim();
-
-      if (style) {
-        rule.insertBefore(decl, decl.clone({
-          prop: `${decl.prop}-style`,
-          value: style,
-        }));
+  function walkDecls(rule) {
+    rule.walkDecls((decl) => {
+      if (/(color|box-shadow)$/.test(decl.prop)) {
+        decl.remove();
+      } else if (/^(border|outline)(\-(left|right|top|bottom))?$/.test(decl.prop)) {
+        decl.remove();
+      } else if (/^background$/.test(decl.prop) && !/url\(/.test(decl.value)) {
+        decl.remove();
       }
-
-      if (width) {
-        rule.insertBefore(decl, decl.clone({
-          prop: `${decl.prop}-width`,
-          value: width,
-        }));
-      }
-      decl.remove();
     });
 
-    rule.walkDecls(/^background$/, (decl) => {
-      decl.value = decl.value.replace(matchColorRegExp, '').trim();
-    });
     if (!rule.nodes.length) {
       rule.remove();
     }
-  });
+  }
+  root.walkRules(walkDecls);
 
   // 如果atRule中没有rule，则删除自身
-  root.walkAtRules((atRule) => {
-    if (!atRule.nodes.length) {
-      atRule.remove();
-    }
-  });
+  root.walkAtRules(walkDecls);
 });
 
 // 将源码css中的颜色值单独提取出来
 const ExtractColorPlugin = postcss.plugin('ExtractColorPlugin', () => (root) => {
-  // 这里会遍历所有的rule，包括atRule中的
-  root.walkRules((rule) => {
-    rule.walkDecls(/^(border|outline|background)$/, (decl) => {
-      const hasColor = matchColorRegExp.exec(decl.value);
-      if (hasColor) {
-        decl.prop = `${decl.prop}-color`;
-        // eslint-disable-next-line
-        decl.value = hasColor[0];
-      } else {
-        decl.remove();
-      }
-    });
-
-    // 删除url
+  function walkDecls(rule) {
     rule.walkDecls((decl) => {
-      if (String(decl.value).match(/url\(.*\)/g)) {
-        decl.remove();
+      if (/(color|box-shadow)$/.test(decl.prop) || /^(border|outline)(\-(left|right|top|bottom))?$/.test(decl.prop)) {
+        return;
       }
+      if (/^background$/.test(decl.prop) && !/url\(/.test(decl.value)) {
+        return;
+      }
+      decl.remove();
     });
 
-    // 删除prop中不包含color或者box-shadow的decl
-    rule.walkDecls(/^((?!(color|box-shadow)).)+$/, (decl) => decl.remove());
     if (!rule.nodes.length) {
       rule.remove();
     }
-  });
+  }
+  // 遍历所有的rule
+  root.walkRules(walkDecls);
   // 这里主要是删除getCssFromAsset方法做的标记
   root.walkComments((c) => c.remove());
   // 如果atRule中没有rule，则删除自身
-  root.walkAtRules((atRule) => {
-    if (!atRule.nodes.length) {
-      atRule.remove();
-    }
-  });
+  root.walkAtRules(walkDecls);
 });
 
 /**
@@ -118,8 +95,8 @@ const ExtractColorPlugin = postcss.plugin('ExtractColorPlugin', () => (root) => 
  * @param {*} content css内容
  * @description 从给定的css中筛选出颜色规则
  */
-async function extractColor(content) {
-  const result = await postcss([ExtractColorPlugin]).process(content);
+async function extractColor(content, colors) {
+  const result = await postcss([ExtractColorPlugin(colors)]).process(content, { from: undefined });
   return result.css;
 }
 
@@ -128,8 +105,8 @@ async function extractColor(content) {
  * @param {*} content css内容
  * @description 从给定的css中删除颜色规则
  */
-async function reduceColor(content) {
-  const result = await postcss([ReduceColorPlugin]).process(content);
+async function reduceColor(content, colors) {
+  const result = await postcss([ReduceColorPlugin(colors)]).process(content, { from: undefined });
   return result.css;
 }
 
@@ -221,7 +198,8 @@ function generateColorMap(content, customColorRegexArray = []) {
     .reduce((prev, next) => {
       try {
         const matches = next.match(
-          /(?=\S*['-])([@a-zA-Z0-9'-]+).*:[ ]{1,}(.*);/,
+          // (?=\S*[-]) 去掉 变量名必须要有中横杠 限制
+          /([@a-zA-Z0-9-]+).*:[ ]{1,}(.*);/,
         );
         if (!matches) {
           return prev;
@@ -234,6 +212,9 @@ function generateColorMap(content, customColorRegexArray = []) {
           prev[varName] = color;
         } else if (isValidColor(color, customColorRegexArray)) {
           prev[varName] = color;
+        }
+        else if (COLORS[color]) {
+          prev[varName] = COLORS[color];
         }
         return prev;
       } catch (e) {
@@ -262,25 +243,6 @@ function getLessVars(filtPath) {
 
 /**
  *
- * @param {*} string 给定字符串
- * @param {*} regex 给定正则
- * @description 从给定的字符串中返回匹配的正则组成的对象
- */
-function getMatches(string, regex) {
-  const matches = {};
-  let match;
-  // eslint-disable-next-line
-  while ((match = regex.exec(string))) {
-    if (match[2].startsWith('rgba') || match[2].startsWith('#')) {
-      // eslint-disable-next-line
-      matches[`@${match[1]}`] = match[2];
-    }
-  }
-  return matches;
-}
-
-/**
- *
  * @param {*} text less 内容
  * @param {*} paths 文件上下文
  * @description 使用less渲染
@@ -291,6 +253,41 @@ function render(text, paths) {
     javascriptEnabled: true,
     plugins: [new NpmImportPlugin({ prefix: '~' })],
   });
+}
+
+function getDerivedVar(key, varName) {
+  return key.replace(DERIVED_COLOR_TAG, varName);
+}
+
+/**
+ * @param {*} themeVars 主题变量
+ * @description 获取生成主题变量插值颜色的css
+ */
+function getThemeCompiledCss(themeVars, themeSelfVars, options) {
+  let css = '';
+  themeVars.forEach((varName) => {
+    // 主题色
+    css = `.${varName.replace('@', THEME_COMPILED_CSS_PREFIX)}{color:${varName};}\n${css}`;
+
+    // 默认衍生颜色
+    [1, 2, 3, 4, 5, 7, 8, 9, 10].forEach((key) => {
+      const name = varName === '@primary-color' ? `@primary-${key}` : `${varName}-${key}`;
+      css = `.${name.replace('@', THEME_COMPILED_CSS_PREFIX)}{color:${getShade(name)};}\n${css}`;
+    });
+
+    // 用户自定义的衍生颜色、iview/view-design下的衍生颜色
+    if (options.derivedVars) {
+      options.derivedVars.forEach((key, index) => {
+        const name = `${varName}-derived-${index}`;
+        css = `.${name.replace('@', THEME_COMPILED_CSS_PREFIX)}{color:${getDerivedVar(key, varName)};}\n${css}`;
+      });
+    }
+  });
+  // 不生成衍生色
+  themeSelfVars.forEach((varName) => {
+    css = `.${varName.replace('@', THEME_COMPILED_CSS_PREFIX)}{color:${varName};}\n${css}`;
+  });
+  return css;
 }
 
 /**
@@ -306,61 +303,59 @@ async function getThemeCompiledVars(
   uiColorFilePath,
   uiStyleDir,
   nodeModulesPath,
+  themeCompiledCss
 ) {
-  let css = '';
-  const randomColors = {};
+  let varsContent = '';
   const randomColorsVars = {};
   themeVars.forEach((varName) => {
     let color = randomColor();
     while (randomColorsVars[color]) {
       color = randomColor();
     }
-    randomColors[varName] = color;
     randomColorsVars[color] = varName;
-    css = `.${varName.replace('@', '')} { color: ${color}; }\n ${css}`;
-  });
-
-  let varsContent = '';
-  themeVars.forEach((varName) => {
-    [1, 2, 3, 4, 5, 7, 8, 9, 10].forEach((key) => {
-      const name = varName === '@primary-color' ? `@primary-${key}` : `${varName}-${key}`;
-      css = `.${name.replace('@', '')} { color: ${getShade(name)}; }\n ${css}`;
-    });
-    varsContent += `${varName}: ${randomColors[varName]};\n`;
+    varsContent += `${varName}: ${color};\n`;
   });
 
   const colorFileContent = combineLess(uiColorFilePath, nodeModulesPath);
-  css = `${colorFileContent}\n${varsContent}\n${css}`;
+  let css = `${colorFileContent}\n${varsContent}\n${themeCompiledCss}`;
 
   const results = await render(css, [uiStyleDir]);
   css = results.css;
   css = css.replace(/(\/.*\/)/g, '');
-  const regex = /.(?=\S*['-])([.a-zA-Z0-9'-]+) {\n {2}color: (.*);/g;
-  return getMatches(css, regex);
+  return getMatches(css, THEME_COMPILED_CSS_REGEXP);
 }
 
-function getOptions(compiler, options) {
+function getOptions(options) {
   const ops = {
-    ...{
-      // 切换主题的颜色
-      themeVariables: ['@primary-color'],
-      // 项目变量文件地址
-      varFile: path.resolve(compiler.context, './src/assets/css/var.less'),
-      ui: 'view-design',
-      // 项目使用的ui的样式文件夹
-      uiStyleDir: './src/styles',
-      // 在计算主题色相关颜色的时候会使用到
-      uiColorFile: './color/colors.less',
-      // 最终对外输出的css文件名
-      fileName: 'css/theme-colors-[contenthash:8].less',
-      isJsUgly: !isDev,
-    },
+    // 切换主题的颜色
+    themeVariables: [],
+    // 如果UI不支持默认的这一套衍生颜色样式，那么就需要对每个颜色进行直接赋值
+    // 以上场景可以使用这个变量
+    themeSelfVariables: [],
+    // 项目变量文件地址
+    varFile: './src/assets/css/var.less',
+    ui: 'view-design',
+    // 项目使用的ui的样式文件夹
+    uiStyleDir: './src/styles',
+    // 在计算主题色相关颜色的时候会使用到
+    uiColorFile: './custom.less',
+    // 衍生变量生成函数文件地址
+    colorPaletteFile: './color/colorPalette.less',
+    isJsUgly: !isDev(),
+    // 衍生变量
+    derivedVars: [],
+    // 判断是否为颜色
+    customColorRegexArray: [],
+    // 在哪些asset提取css；开发环境下处理根目录下的css、js；其他模式下只处理css文件夹下的css文件
+    filterAssets: (k) => (isDev() ? cssOrJsDevRegExp : cssOrJsProRegExp).test(k),
+    // 相关代码注入到哪些html中，默认只处理根目录下的html
+    filterHtml: (k) => /^((?!\/).)+.html$/.test(k),
+    // 在热更新时，需要将less内容先转成js字符串保存，这时候需要对内容做转义，默认情况下对单引号和反斜杠做了转义
+    hmrTransformLess: (content) => content.replace(/\\/g, "\\\\").replace(/'/g, "\\'"),
     ...options,
   };
-  ops.customColorRegexArray = [
-    ...(options.customColorRegexArray || []),
-    ...dftCustomColorRegexArray,
-  ];
+  ops.customColorRegexArray = dftCustomColorRegexArray.concat(ops.customColorRegexArray);
+  ops.derivedVars = ['iview', 'view-design'].includes(ops.ui) ? IVIEW_DERIVED_VARS.concat(ops.derivedVars) : ops.derivedVars;
   return ops;
 }
 
@@ -449,66 +444,66 @@ function replaceAssetColor(assets, assetsKeys, cssArray, regExp) {
   });
 }
 
-
-
 module.exports = class LessThemeWebpackPlugin {
   constructor(options) {
-    /**
-     * {
-     *    themeVariables: ['@primary-color'],
-     *    varFile: path.resolve(compiler.context, './src/assets/css/var.less'),
-     *    customColorRegexArray: [], // 一般用不到
-     *    fileName: 'css/theme-colors-[contenthash:8].less', // generate-theme-use-less没有使用到
-     *    ui: 'view-design',
-     *    uiStyleDir: './src/styles',
-     *    uiColorFile: './color/colors.less',
-     *    isJsUgly: !isDev,
-     * }
-     */
     this.options = options;
   }
 
   apply(compiler) {
-    const options = getOptions(compiler, this.options);
+    const options = getOptions(this.options);
     const {
       themeVariables,
-      varFile,
+      themeSelfVariables,
       customColorRegexArray,
-      ui,
-      fileName,
       isJsUgly,
+      filterAssets,
     } = options;
 
     const nodeModulesPath = path.resolve(compiler.context, './node_modules');
-    const uiDir = path.resolve(nodeModulesPath, `./${ui}`);
-    const uiStyleDir = path.resolve(uiDir, options.uiStyleDir);
-    const uiColorFilePath = path.resolve(uiStyleDir, options.uiColorFile);
 
-    const varFileContent = combineLess(varFile, nodeModulesPath);
+    const uiDir = IsPathExist(path.resolve(nodeModulesPath, `./${options.ui}`), `[${options.ui}] is not exist, you should install it!`);
 
-    // less变量对象
-    const mappings = Object.assign(
-      generateColorMap(varFileContent, customColorRegexArray),
-      // getLessVars(varFile),
-    );
+    const uiStyleDir = IsPathExist(path.resolve(uiDir, options.uiStyleDir));
 
-    const themeVars = themeVariables.filter((name) => name in mappings && !name.match(/(.*)-(\d)/));
+    const uiColorFilePath = IsPathExist(path.resolve(uiStyleDir, options.uiColorFile));
+
+    const varFilePath = IsPathExist(path.resolve(compiler.context, options.varFile));
+
+    /* -------- */
+
+    
+
+    let varFileContent = '';
+    let themeCompiledCss = '';
+    let mappings = null;
 
     let themeCompiledVars = {};
     let themeCompiledVarsString = '';
 
-    // 生成随机主题变量，并注入到 loaderContext
-    compiler.hooks.beforeCompile.tapPromise(PLUGIN_NAME, async () => {
-      // 如果已经生成了主题字符串，则不再执行了
-      // 目的是为了保证所有的less都使用的是同一组随机变量
-      if (themeCompiledVarsString) {
+    // development模式
+    compiler.hooks[isDev() ? 'watchRun' : 'beforeRun'].tapPromise(PLUGIN_NAME, async (compiler) => {
+      const beforeVarFileContent = varFileContent;
+      varFileContent = combineLess(varFilePath, nodeModulesPath);
+
+      // 如果之前有变量内容，并且内容和最新的不一样，那么就需要重新走一波流程
+      if (beforeVarFileContent && beforeVarFileContent === varFileContent) {
         return;
       }
+
+      // less变量对象
+      mappings = generateColorMap(varFileContent, customColorRegexArray);
+
+      const themeVars = themeVariables.filter((name) => name in mappings);
+      const themeSelfVars = themeSelfVariables.filter((name) => name in mappings);
+
+      themeCompiledCss = getThemeCompiledCss(themeVars, themeSelfVars, options);
+
       themeCompiledVars = await getThemeCompiledVars(
-        themeVars,
+        themeVars.concat(themeSelfVars),
         uiColorFilePath,
         uiStyleDir,
         nodeModulesPath,
+        themeCompiledCss
       );
       // 生成对应的less变量字符串
       themeCompiledVarsString = Object.keys(themeCompiledVars).map((k) => `${k}: ${themeCompiledVars[k]};`).join('\n');
@@ -521,6 +516,7 @@ module.exports = class LessThemeWebpackPlugin {
         PLUGIN_NAME,
         (loaderContext) => {
           loaderContext[COLOR_NAME] = themeCompiledVarsString;
+          loaderContext[THEME_FILE] = varFilePath;
         },
       );
     });
@@ -531,7 +527,7 @@ module.exports = class LessThemeWebpackPlugin {
       const reducePromise = [];
       const regExp = isJsUgly ? CSS_REGEXP_UGLY : CSS_REGEXP_DEV;
       // 只处理css或者js
-      const assetsKeys = Object.keys(assets).filter((k) => cssOrJsRegExp.test(k));
+      const assetsKeys = Object.keys(assets).filter(filterAssets);
 
       assetsKeys.forEach((key) => {
         const asset = assets[key];
@@ -556,11 +552,14 @@ module.exports = class LessThemeWebpackPlugin {
        * 接下来我们使用less编译的这种方式实现主题定制
        */
       generateThemeUseLess({
+        compiler,
         compilation,
-        fileName,
         cssContent,
         mappings,
         themeCompiledVars,
+        options,
+        combineLess,
+        themeCompiledCss
       });
     });
   }

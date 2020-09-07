@@ -1,7 +1,9 @@
+const fs = require('fs');
+
 exports.hmrJsFileRegExp = /\.hot-update\.js$/;
 
 exports.isDef = (array) => Object.prototype.toString.call(array) !== '[object Undefined]';
-exports.isDev = process.env.NODE_ENV === 'development';
+exports.isDev = () => process.env.NODE_ENV === 'development';
 
 /**
  *
@@ -17,6 +19,25 @@ exports.getShade = function getShade(varName) {
   }
   // eslint-disable-next-line
   return 'color(~`colorPalette("@{' + className.replace('@', '') + '}", ' + number + ')`)';
+}
+
+/**
+ *
+ * @param {*} string 给定字符串
+ * @param {*} regex 给定正则
+ * @description 从给定的字符串中返回匹配的正则组成的对象
+ */
+exports.getMatches = function getMatches(string, regex) {
+  const matches = {};
+  let match;
+  // eslint-disable-next-line
+  while ((match = regex.exec(string))) {
+    if (/^(rgba|#)/.test(match[2])) {
+      // eslint-disable-next-line
+      matches['@'+ match[1]] = match[2];
+    }
+  }
+  return matches;
 }
 
 /**
@@ -99,4 +120,17 @@ to
  // 去掉换行符
  css = css.replace(/\n/g, '');
  return css;
+}
+
+/**
+ * @description 检查路径是否存在
+ */
+exports.IsPathExist = function IsPathExist(path, msg) {
+  if (!fs.existsSync(path)) {
+    if (msg) {
+      throw new Error(msg);
+    }
+    throw new Error(`${path} is not exist!`);
+  }
+  return path;
 }

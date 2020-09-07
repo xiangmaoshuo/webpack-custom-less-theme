@@ -1,4 +1,5 @@
-const { COLOR_NAME } = require('./constant');
+const { COLOR_NAME, THEME_FILE } = require('./constant');
 module.exports = function lessThemeLoader(source) {
-  return `${this[COLOR_NAME]}\n${source}`;
+  this.addDependency(this[THEME_FILE]);
+  return `${source}\n${this[COLOR_NAME]}`;
 };
