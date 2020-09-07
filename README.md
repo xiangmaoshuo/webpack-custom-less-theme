@@ -43,6 +43,8 @@
  ]
  ```
 
+ 如果你使用的是vue-cli3，推荐使用[vue-cli-plugin-less-theme](https://github.com/xiangmaoshuo/vue-cli-plugin-less-theme)
+
  默认的generateThemeUseLess方法会在window上添加2个属性__lessContent和changeThemeUseLess，其中__lessContent实际开发中不用关心，调用changeThemeUseLess即可改变主题，参数为对应的less变量对象：
  ```
  window.changeThemeUseLess({
