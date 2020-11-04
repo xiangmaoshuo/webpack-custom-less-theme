@@ -44,8 +44,12 @@
  ```
 
 如果你使用的是vue-cli3，推荐使用[vue-cli-plugin-less-theme](https://github.com/xiangmaoshuo/vue-cli-plugin-less-theme)
- 默认的generateThemeUseLess方法会在window.less上添加一个changeTheme方法：
+ 默认的generateThemeUseLess方法会在window.less上添加一个方法changeTheme和一个属性themeColors：
  ```
+ // 包含系列主题色，方便在js中调用
+ window.less.themeColors = {...}
+ 
+ // 用以改变主题
  window.less.changeTheme({
     '@primary-color': '#f90',
 });
