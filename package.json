@@ -1,6 +1,6 @@
 {
   "name": "webpack-custom-less-theme",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "use less generate theme",
   "main": "index.js",
   "scripts": {
@@ -18,5 +18,9 @@
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:xiangmaoshuo/webpack-custom-less-theme.git"
   }
 }
