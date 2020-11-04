@@ -1,9 +1,9 @@
-# less-theme-webpack-plugin
+# webpack-custom-less-theme
 ## 使用方法
  ```
  // webpack.config.js
- const lessThemeLoader = require('less-theme-webpack-plugin/loader');
- const LessThemeWebpackPlugin = require('less-theme-webpack-plugin');
+ const lessThemeLoader = require('webpack-custom-less-theme/loader');
+ const LessThemeWebpackPlugin = require('webpack-custom-less-theme');
  ...
  {
    test: /\.less$/,
@@ -43,11 +43,10 @@
  ]
  ```
 
- 如果你使用的是vue-cli3，推荐使用[vue-cli-plugin-less-theme](https://github.com/xiangmaoshuo/vue-cli-plugin-less-theme)
-
- 默认的generateThemeUseLess方法会在window上添加2个属性__lessContent和changeThemeUseLess，其中__lessContent实际开发中不用关心，调用changeThemeUseLess即可改变主题，参数为对应的less变量对象：
+如果你使用的是vue-cli3，推荐使用[vue-cli-plugin-less-theme](https://github.com/xiangmaoshuo/vue-cli-plugin-less-theme)
+ 默认的generateThemeUseLess方法会在window.less上添加一个changeTheme方法：
  ```
- window.changeThemeUseLess({
+ window.less.changeTheme({
     '@primary-color': '#f90',
 });
 ```

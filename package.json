@@ -1,6 +1,6 @@
 {
-  "name": "less-theme-webpack-plugin",
-  "version": "1.0.1",
+  "name": "webpack-custom-less-theme",
+  "version": "1.0.0",
   "description": "use less generate theme",
   "main": "index.js",
   "scripts": {
@@ -15,5 +15,8 @@
     "postcss": "^7.0.32",
     "uglify-es": "^3.3.9",
     "webpack-sources": "^1.4.3"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
   }
 }

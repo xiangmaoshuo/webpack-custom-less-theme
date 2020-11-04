@@ -4,7 +4,7 @@ const version = JSON.parse(fs.readFileSync(path.resolve(__dirname, './package.js
 // 扩展derivedVars时使用的插值标记
 const DERIVED_COLOR_TAG = '@derivedColor';
 // 插件名称
-const PLUGIN_NAME = 'LessThemeWebpackPlugin';
+const PLUGIN_NAME = 'WebpackCustomLessTheme';
 // 生成主题变量及其衍生变量对应的css样式时，所使用的前缀
 const THEME_COMPILED_CSS_PREFIX = `${PLUGIN_NAME}-`;
 

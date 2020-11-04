@@ -85,7 +85,7 @@ function generateLessContent(themeVars) {
         );
       }
       ${isDevEnv ? 'gt();' : 'w.less.pageLoadFinished.then(gt);'}
-      w.less.changeThemeUseLess = function(vars${isDevEnv && ', isHmr = false'}) {
+      w.less.changeTheme = function(vars${isDevEnv && ', isHmr = false'}) {
         var target = getVars(vars);
         ${
           isDevEnv
@@ -118,7 +118,7 @@ function insertLessFileInHtml({
   themeVars,
   options,
 }) {
-  const { assets } = compilation;
+  const { assets, options: { output: { publicPath } } } = compilation;
   const isDevEnv = isDev() ? true : '';
   const isProEnv = !isDevEnv ? true : '';
   const lessJsContent = isDevEnv ? generateLessContent(themeVars) : UglifyJS.minify(generateLessContent(themeVars)).code;
@@ -127,8 +127,8 @@ function insertLessFileInHtml({
   const insertHtmlContent = `
   ${isDevEnv
       ? `<style type="text/less" id="${lessThemeStyleId}">${cssContent}</style>`
-      : `<link rel="stylesheet/less" type="text/css" href="${lessCssPath}" title="${lessThemeStyleId}" />`}
-      <script src="${lessJsPath}"></script></head>
+      : `<link rel="stylesheet/less" type="text/css" href="${publicPath}${lessCssPath}" title="${lessThemeStyleId}" />`}
+      <script src="${publicPath}${lessJsPath}"></script></head>
   `;
 
   assets[lessJsPath] = {
@@ -206,7 +206,7 @@ module.exports = function generateThemeUseLess({
       const content = `
       ;(function(w) {
         w.__lessContent = '${options.hmrTransformLess(cssContent)}';
-        w.less.changeThemeUseLess(JSON.parse(localStorage.getItem(${LOCAL_STORAGE_COLOR_NAME})) || ${JSON.stringify(themeVars)}, true);
+        w.less.changeTheme(JSON.parse(localStorage.getItem(${LOCAL_STORAGE_COLOR_NAME})) || ${JSON.stringify(themeVars)}, true);
       })(window);
       \n
       ${originalContent}`;
